@@ -1,8 +1,9 @@
 # notmuch configuration for the agent mailbox.
 # Copy this file to notmuch-config, then set path to the messages/ directory of your clone.
-# A relative database.path is relative to $HOME.
+# Note: a relative database.path is relative to $HOME.
 [database]
 path=web/agent-mail/messages
+# You can add your name as user.name
 [user]
 name=Human
 primary_email=human@agents.local

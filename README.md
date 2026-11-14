@@ -1,8 +1,8 @@
 # Agent mail
 
-A local mailbox for Claude Code agents and you. Each message is one email file in a Maildir. Replies form threads, and a thread can be a task.
+This is a local mailbox for you and your Claude Code agents. Each message is stored as a single email file in a Maildir. Replies are grouped into threads, and a thread can also work as a task.
 
-There is no mail server. Messages go straight into the Maildir with `notmuch insert`, and `notmuch` gives the threads, the search, and the tags. Each person has a separate mailbox on their own machine.
+There is no mail server. Messages are added directly to the Maildir with `notmuch insert`, and `notmuch` provides the threading, search, and tagging. Each person has their own separate mailbox on their own machine.
 
 ## Files
 
@@ -15,21 +15,21 @@ There is no mail server. Messages go straight into the Maildir with `notmuch ins
 | `messages/`              | The Maildir and the `.notmuch` index (not in git)              |
 ```
 
-In the commands below, `<repo>` is the directory of your clone, for example `~/web/agent-mail`.
+In the commands below, `<repo>` is the directory of your clone of this repostiory, for example `~/code/agent-mail`.
 
 ## Install
 
-1. Install the tools:
+1. Install the required tools:
 
        brew install notmuch fswatch
 
    On Linux, use `inotifywait -e create` from `inotify-tools` instead of `fswatch`.
 
-2. Make your configuration from the template:
+2. Copy and update the notmuch configuration template:
 
        cp <repo>/notmuch-config.example <repo>/notmuch-config
 
-   In `notmuch-config`, set `path` to `<repo>/messages`. A relative path is relative to your home directory. You can also set `name` to your name.
+   Edit the `notmuch-config` to set `path` to `<repo>/messages` and other parameters (see the file for more information).
 
 3. Create the Maildir and the index:
 
@@ -40,33 +40,35 @@ In the commands below, `<repo>` is the directory of your clone, for example `~/w
 
        ln -s <repo> ~/.claude/skills/mailbox
 
+   You can skip this, but then you need to let the agent know about the skill explicitly.
+
 ## Conventions
 
-- Teams: a team is a group of agents that work on one task, for example `task-1`. Each team has its own domain, `<team>.agents.local`. A new team needs no setup: the first message to the domain starts it.
-- Addresses: `<role>@<team>.agents.local`, for example `engineer@task-1.agents.local` and `tester@task-1.agents.local`. Agents send mail only inside their own team and to you.
-- You have one address for all teams: `human@agents.local`. It is the same for everyone, because each mailbox has only one human.
-- Tags:
-  - `task`: the first message of a task thread.
-  - `done`: the task is complete.
-  - `seen-<address>`: this reader has read the message, for example `seen-engineer@task-1.agents.local`. Each reader has a separate tag, because all readers share one database. Do not use `unread` for this.
+Conventions:
 
-Two agents with the same role in different teams (`engineer@task-1...` and `engineer@task-2...`) do not see the mail of each other. The mailbox keeps only the conversations apart. If two teams work in the same repository, give each team its own git worktree.
+- **Teams/Tasks:** A team is a group of agents that work together on one task, for example `task-1` means a "team of agents working on the task-1".
+  - Each team has its own domain, `<team>.agents.local`.
+  - You do not need to manually set up a new team, it works automatically when the first message is sent to its `<team>.agents.local` domain.
+- **Addresses:** Agent addresses have the format `<role>@<team>.agents.local`, for example `engineer@task-1.agents.local` and `tester@task-1.agents.local`.
+- **Your address:** You have one address for all teams/tasks: `human@agents.local`.
+- **Tags:**
+  - `task`: marks the first message of a task thread.
+  - `done`: marks a task as complete.
+  - `seen-<address>`: shows that this reader has read the message, for example `seen-engineer@task-1.agents.local`. Each email address has a separate "seen" tag.
 
 ## Start an agent
 
-Give the full address in the start prompt, for example:
+Let the agent know what their email address is in the prompt, for example:
 
-    You are tester@task-1.agents.local. Use the mailbox skill. Read your new mail, do the work, and reply.
+    Use the mailbox skill, your email is tester@task-1.agents.local. Read your mail, do the work, and reply with results.
 
-The skill tells the agent how to wait for new mail with `fswatch`. The Claude Code `Monitor` tool can run this command.
+The skill explains to the agent how to use `fswatch` to watch for the email. Claude Code has `Monitor` tool that can run this command.
 
-## Use the command line
+## How to access messages. Method 1: Use the Command Line
 
 Set the configuration in your shell first:
 
     export NOTMUCH_CONFIG=<repo>/notmuch-config
-
-CAUTION: Do not set `NOTMUCH_CONFIG` in your shell profile. Then every notmuch command in every shell uses the agent mailbox instead of your personal mail.
 
 Common commands:
 
@@ -78,19 +80,17 @@ Common commands:
     notmuch tag +seen-human@agents.local -- thread:<id>   # mark as read
     notmuch tag +done -- thread:<id>                      # close a task
 
-To send a message from the command line, write the full message text (headers, an empty line, the body) to the input of `notmuch insert`. `SKILL.md` shows an example.
+To send a message from the command line, send the full message text as the input to `notmuch insert`. See the example of the message in the `SKILL.md`.
 
-## Use Emacs
+## How to access messages. Method 1: Use Emacs
 
-Homebrew installs the notmuch Emacs package in `/opt/homebrew/share/emacs/site-lisp/notmuch`.
+Install the [notmuch emacs](https://notmuchmail.org/notmuch-emacs/) package and use the extra configuration below to access agent messages.
 
-notmuch can also hold your personal mail, so open the mailbox in a separate Emacs instance:
+If you also use notmuch for your personal mail, run a separate Emacs instance to access agent communcation like this:
 
     NOTMUCH_CONFIG=<repo>/notmuch-config emacs --no-desktop -f notmuch &
 
-The `--no-desktop` flag stops this instance from loading or saving your desktop (the buffer list of your main session).
-
-Add this to your Emacs init file. It changes the settings only in the agent mail instance. If the name of your clone does not contain `agent-mail`, change the string in the first line.
+Settings below in the Emacs init file help setting up notmuch to work with agent mail:
 
 ```elisp
 (when (string-match-p "agent-mail" (or (getenv "NOTMUCH_CONFIG") ""))
@@ -116,6 +116,14 @@ Add this to your Emacs init file. It changes the settings only in the agent mail
            :query "to:task-1.agents.local or from:task-1.agents.local"))))
 ```
 
-The From address comes from `primary_email` in `notmuch-config`. Use the usual notmuch keys: `m` writes a new message, `r` and `R` reply, `+` and `-` change tags. In the message buffer, `C-c C-c` sends the message (it runs `agent-mail-send`) and `C-c C-k` cancels it.
+The From address is the same as `primary_email` in `notmuch-config`.
 
-CAUTION: Before you send the first message, make sure that `M-: message-send-mail-function` shows `agent-mail-send`. If it shows a different function, Emacs tries to send a real email.
+To manage mail, use the usual notmuch keys:
+* `m` to write a new message
+* `r` and `R` to reply
+* `+` and `-` to change tags.
+
+In the message buffer, `C-c C-c` sends the message (`M-x agent-mail-send`) and `C-c C-k` cancels sending.
+
+Before you send the first message, it is good to make sure that `M-: message-send-mail-function` returns `agent-mail-send`.
+If it shows a different function, Emacs will try to send a real email.
